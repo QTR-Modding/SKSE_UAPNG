@@ -8,6 +8,7 @@ namespace config {
     extern int iMovementType;
     extern bool bEnableNotifications;
     extern bool bEnableSpamPotions;
+    extern bool bExcludePlayer;
     extern std::unordered_set<std::string> allowedPotionNames;
 
     std::unordered_map<std::string, int> ReadSettings();
@@ -16,3 +17,5 @@ namespace config {
     int GetIniSetting(const char* settingName, int defaultValue);
     void SetIniSetting(const char* settingName, int value); 
 }
+
+inline std::atomic<bool> pause = false;

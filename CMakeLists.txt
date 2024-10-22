@@ -1,11 +1,19 @@
-cmake_minimum_required(VERSION 3.29)
-message("Using toolchain file ${CMAKE_TOOLCHAIN_FILE}.")
+if(NOT DEFINED ENV{COMMONLIB_SSE_FOLDER})
+  message(FATAL_ERROR "Missing COMMONLIB_SSE_FOLDER environment variable")
+endif()
 
-project(
-  UAPNG
-  VERSION 1.0.0
-  LANGUAGES CXX
-)
+include(cmake/headerlist.cmake)
+include(cmake/sourcelist.cmake)
+include(cmake/lib/copyOutputs.cmake)
+include(cmake/lib/automaticGameFolderOutput.cmake)
+
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
+cmake_minimum_required(VERSION 3.21)
+set(AUTHOR_NAME "Flip")
+set(PRODUCT_NAME "UAPNG")
+set(BEAUTIFUL_NAME "UAPNG")
+project(${PRODUCT_NAME} VERSION 2.7.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
@@ -15,29 +23,36 @@ set(CMAKE_OPTIMIZE_DEPENDENCIES ON)
 include(GNUInstallDirs)
 
 configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in
-  ${CMAKE_CURRENT_BINARY_DIR}/version.rc
-  @ONLY
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    @ONLY)
+
+set(RESOURCE_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+set(RESOURCE_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.res)
+
+add_custom_command(
+    OUTPUT ${RESOURCE_OUTPUT}
+    COMMAND rc /fo ${RESOURCE_OUTPUT} ${RESOURCE_FILE}
+    DEPENDS ${RESOURCE_FILE}
 )
 
-set(PUBLIC_HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/${PROJECT_NAME})
+# Add a custom target to ensure the resource file is generated
+add_custom_target(Resource ALL DEPENDS ${RESOURCE_OUTPUT})
 
-# Add headers
-file(
-  GLOB_RECURSE
-  headers
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
-)
-list(REMOVE_ITEM headers ${CMAKE_CURRENT_SOURCE_DIR}/include/PCH.h)
+set(ENABLE_SKYRIM_SE ON CACHE BOOL " " FORCE)
+set(ENABLE_SKYRIM_AE ON CACHE BOOL " " FORCE)
+set(ENABLE_SKYRIM_VR ON CACHE BOOL " " FORCE)
+set(BUILD_TESTS OFF CACHE BOOL " " FORCE)
 
-# Add sources
+add_subdirectory("$ENV{COMMONLIB_SSE_FOLDER}" ${CMAKE_CURRENT_BINARY_DIR}/_deps/clib-build)
+get_target_property(COMMONLIB_SRC_DIR CommonLibSSE SOURCE_DIR)
+
+
 file(
   GLOB_RECURSE
   sources
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+  ${sources}
 )
 
 source_group(
@@ -46,75 +61,26 @@ source_group(
 )
 
 set(BUILD_TESTS OFF)
-add_subdirectory(extern/CommonLibSSE-NG)
-include(extern/CommonLibSSE-NG/cmake/CommonLibSSE.cmake)
+include(${COMMONLIB_SRC_DIR}/cmake/CommonLibSSE.cmake)
 
 add_commonlibsse_plugin(
   ${PROJECT_NAME}
-  AUTHOR Flip
+  AUTHOR AUTHOR_NAME
   SOURCES ${headers} ${sources}
 )
-
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
-
-find_path(SIMPLEINI_INCLUDE_DIRS "SimpleIni.h")
-
-# target_link_libraries(
-# ${PROJECT_NAME}
-# PRIVATE
-# SomeLibrary::SomeLibrary
-# )
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
+target_precompile_headers(${PROJECT_NAME} PRIVATE include/PCH.h) # <--- PCH.h is required!
 target_include_directories(
-  ${PROJECT_NAME}
-  PRIVATE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/src>
-  $<INSTALL_INTERFACE:src>
-  ${SIMPLEINI_INCLUDE_DIRS}
-  PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+	${PROJECT_NAME}
+	PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_precompile_headers(
-  ${PROJECT_NAME}
-  PRIVATE
-  include/PCH.h
-  ${SIMPLEINI_INCLUDE_DIRS}/SimpleIni.h
-)
+target_compile_definitions(${PROJECT_NAME} PRIVATE IS_HOST_PLUGIN)
 
-install(
-  DIRECTORY ${PUBLIC_HEADER_DIR}
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
+set(wildlander_output false)
+set(steam_owrt_output false)
+set(steam_mods_output true)
+set(lorerim_mods_output true)
+automaticGameFolderOutput(wildlander_output, steam_owrt_output, steam_mods_output lorerim_mods_output)
 
-install(
-  TARGETS ${PROJECT_NAME}
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}
-)
-
-if (CMAKE_BUILD_TYPE STREQUAL Debug)
-  set(BUILD_NAME Debug)
-else ()
-  set(BUILD_NAME Release)
-endif ()
-
-add_custom_command(
-  TARGET ${PROJECT_NAME}
-  POST_BUILD
-  COMMAND
-  ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/contrib/Plugin${BUILD_NAME}/skse/plugins
-  COMMAND
-  ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/contrib/Plugin${BUILD_NAME}/skse/plugins
-  COMMAND
-  ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/contrib/Plugin${BUILD_NAME}/skse/plugins
-  COMMAND
-  ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/contrib/Config/${PROJECT_NAME}.ini ${CMAKE_CURRENT_SOURCE_DIR}/contrib/Plugin${BUILD_NAME}/skse/plugins
-)
-
-file(GLOB_RECURSE OUTPUT_DLLS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/**/*.dll)
-file(GLOB_RECURSE OUTPUT_PDBS ${CMAKE_CURRENT_SOURCE_DIR}/contrib/**/*.pdb)
-
-set_property(
-  TARGET ${PROJECT_NAME}
-  APPEND PROPERTY ADDITIONAL_CLEAN_FILES ${OUTPUT_DLLS} ${OUTPUT_PDBS}
-)
