@@ -10,6 +10,7 @@ namespace config {
     int iMovementType;
     bool bEnableNotifications;
     bool bEnableSpamPotions;
+    bool bExcludePlayer;
     std::unordered_set<std::string> allowedPotionNames;
 
     std::string GetIniFilePath() {
@@ -50,6 +51,7 @@ namespace config {
         settings["iMovementType"] = GetIniSetting("iMovementType", 0);
         settings["bEnableNotifications"] = GetIniSetting("bEnableNotifications", 1);
         settings["bEnableSpamPotions"] = GetIniSetting("bEnableSpamPotions", 1);
+        settings["bExcludePlayer"] = GetIniSetting("bExcludePlayer", 0);
         ReadAllowedPotionNames();
         return settings;
     }

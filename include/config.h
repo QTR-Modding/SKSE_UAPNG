@@ -8,6 +8,7 @@ namespace config {
     extern int iMovementType;
     extern bool bEnableNotifications;
     extern bool bEnableSpamPotions;
+    extern bool bExcludePlayer;
     extern std::unordered_set<std::string> allowedPotionNames;
 
     std::unordered_map<std::string, int> ReadSettings();

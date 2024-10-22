@@ -19,6 +19,7 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
                 config::iMovementType = settings["iMovementType"];
                 config::bEnableNotifications = settings["bEnableNotifications"] != 0;
                 config::bEnableSpamPotions = settings["bEnableSpamPotions"] != 0;
+                config::bExcludePlayer = settings["bExcludePlayer"] != 0;
 
                 for (auto& eventSink : actorEventSink | std::views::values) {
                     CleanupAnimationEvent(eventSink.get(), true);

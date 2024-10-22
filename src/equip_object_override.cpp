@@ -15,7 +15,7 @@ void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_acto
         return;
     }
 
-    if (!a_object || !a_actor || !a_self) {
+    if (!a_object || !a_actor || !a_self || config::bExcludePlayer && a_actor->IsPlayerRef()) {
         func(a_self, a_actor, a_object, a_unk);
         return;
     }
