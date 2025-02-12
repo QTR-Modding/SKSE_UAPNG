@@ -1,21 +1,26 @@
 #include "actor_data.h"
 #include "animation_event_sink.h"
 #include "function_library.h"
-#include "logger.h"
+#include "config.h"
 
 AnimationEventSink::AnimationEventSink(RE::ActorEquipManager* equipManager, RE::Actor* actor,
-                                       RE::TESBoundObject* object, std::uint64_t unk)
+                                       RE::TESBoundObject* object, const std::uint64_t unk)
     : a_equipManager(equipManager), a_actor(actor), a_object(object), a_unk(unk) {}
 
 RE::BSEventNotifyControl AnimationEventSink::ProcessEvent(
-    const RE::BSAnimationGraphEvent* a_event, [[maybe_unused]] RE::BSTEventSource<RE::BSAnimationGraphEvent>* source) {
+    const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>*) {
     if (marked_for_delete.load()) return RE::BSEventNotifyControl::kContinue;
     if (a_event && a_actor) {
-        if (const RE::BSFixedString& eventTag = a_event->tag; eventTag == "IUHeal") {            
+        if (const RE::BSFixedString& eventTag = a_event->tag; eventTag == "AnimObjLoad" && a_event->payload == "AnimObjectDrinkPotion") {
             ActorData& data = actorDataMap[a_actor];
-            data.bDrinking.store(false);
-            ProcessPotionAnimationEvent(this);
-            
+            data.waitForUIHeal.store(true);
+        }
+        else if (eventTag == "IUHeal") {
+            if (ActorData& data = actorDataMap[a_actor]; data.waitForUIHeal.load()) {
+                data.waitForUIHeal.store(false);
+                data.bDrinking.store(false);
+                ProcessPotionAnimationEvent(this);
+            }
         } else if (eventTag == "DrinkPotionStop" || eventTag == "EnableBumper" || eventTag == "MTState") {
             logger::trace("AnimationEventSink::ProcessEvent:");
             logger::trace("Removing event sink for Actor: '{}'", a_actor.get()->GetName());
@@ -33,7 +38,7 @@ void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink) {
 }
 
 AnimationEventSink* GetOrCreateEventSink(RE::Actor* a_actor, RE::ActorEquipManager* a_self,
-                                         RE::TESBoundObject* a_object, std::uint64_t a_unk) {
+                                         RE::TESBoundObject* a_object, const std::uint64_t a_unk) {
     AnimationEventSink* eventSink = nullptr;
     if (!a_actor) return eventSink;
     const auto actor_custom = ActorCustom(a_actor);
@@ -60,6 +65,7 @@ void CleanupAnimationEvent(AnimationEventSink* eventSink, const bool unHideWeapo
     ActorData& data = actorDataMap[eventSink->a_actor];
     data.bAnimationInProgress.store(false);
     data.bDrinking.store(false);
+    data.waitForUIHeal.store(false);
 
     if (unHideWeapon) {
         HideWeapon(eventSink->a_actor.get(), false);
@@ -83,7 +89,7 @@ void RemoveEventSink(const AnimationEventSink* sink) {
     logger::info("AnimationEventSink deleted.");
 }
 
-ActorCustom::ActorCustom(RE::FormID formid, RE::FormID refid): formid(formid), refid(refid) {}
+ActorCustom::ActorCustom(const RE::FormID formid, const RE::FormID refid): formid(formid), refid(refid) {}
 
 ActorCustom::ActorCustom(RE::Actor* a_actor)
 {

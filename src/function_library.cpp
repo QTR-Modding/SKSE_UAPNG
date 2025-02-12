@@ -2,7 +2,6 @@
 #include "animation_event_sink.h"
 #include "config.h"
 #include "function_library.h"
-#include "logger.h"
 #include <filesystem>
 #include <string>
 #include <vector>

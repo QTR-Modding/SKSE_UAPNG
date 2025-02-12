@@ -1,7 +1,6 @@
 #include "equip_object_override.h"
 #include "actor_data.h"
 #include "function_library.h"
-#include "logger.h"
 #include "pch.h"
 #include "config.h"
 
