@@ -1,4 +1,3 @@
-#include "PCH.h"
 #include "config.h"
 #include "equip_object_override.h"
 #include "logger.h"
