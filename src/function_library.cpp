@@ -8,13 +8,13 @@
 #include <vector>
 #include <windows.h>
 
-void SendDebugNotification(const char* message, const char* soundToPlay, bool cancelIfAlreadyQueued) {
+void SendDebugNotification(const char* message, const char* soundToPlay, const bool cancelIfAlreadyQueued) {
     if (config::bEnableNotifications) {
         RE::DebugNotification(message, soundToPlay, cancelIfAlreadyQueued);
     }   
 }
 
-void PlaySound(int soundID) {
+void PlaySound(const int soundID) {
     const auto soundFormID = static_cast<RE::FormID>(soundID);
     if (auto* audio = RE::BSAudioManager::GetSingleton()) {
         audio->Play(soundFormID);
@@ -28,8 +28,8 @@ bool IsPlayerInFirstPerson() {
     return false;
 }
 
-void UpdateNode(RE::NiNode* node, SKSE::stl::enumeration<RE::NiUpdateData::Flag, std::uint32_t> flags,
-                float updateTime) {
+void UpdateNode(RE::NiNode* node, const SKSE::stl::enumeration<RE::NiUpdateData::Flag, std::uint32_t> flags,
+                const float updateTime) {
     auto updateData = RE::NiUpdateData();
     updateData.flags = flags;
     updateData.time = updateTime;
@@ -101,7 +101,7 @@ std::vector<std::string> GetMagicEffectNames(RE::TESBoundObject* a_object) {
 void SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString) {
     if (const auto animGraphHolder = static_cast<RE::IAnimationGraphManagerHolder*>(a_actor)) {
         animGraphHolder->NotifyAnimationGraph(AnimationString);
-        logger::info("Sending animation event: '{}' Actor: '{}'", AnimationString,
+        logger::trace("Sending animation event: '{}' Actor: '{}'", AnimationString,
                       a_actor->GetName());
     } else {
         logger::error("Failed to get animGraphHolder for Actor: '{}'",
@@ -142,10 +142,10 @@ bool GetAnimationVariableBool(RE::Actor* a_actor, const std::string& variableNam
     return value;
 }
 
-void SetAnimationVariableBool(RE::Actor* a_actor, const char* variableName, bool value) {
+void SetAnimationVariableBool(RE::Actor* a_actor, const char* variableName, const bool value) {
     if (const auto animGraphHolder = static_cast<RE::IAnimationGraphManagerHolder*>(a_actor)) {
         animGraphHolder->SetGraphVariableBool(variableName, value);
-        logger::info("Setting animation variable: '{}' Value: '{}' Actor: '{}'",
+        logger::trace("Setting animation variable: '{}' Value: '{}' Actor: '{}'",
                       variableName, value ? "true" : "false", a_actor->GetName());
     } else {
         logger::error("Failed to get animGraphHolder for Actor: '{}'",
@@ -153,7 +153,7 @@ void SetAnimationVariableBool(RE::Actor* a_actor, const char* variableName, bool
     }
 }
 
-void HideWeapon(RE::Actor* a_actor, bool a_cull) {
+void HideWeapon(RE::Actor* a_actor, const bool a_cull) {
     const RE::BSFixedString nodeName("Weapon");
     if (const auto rootNode = a_actor->GetNodeByName(nodeName)) {
         rootNode->CullNode(a_cull);
@@ -162,17 +162,17 @@ void HideWeapon(RE::Actor* a_actor, bool a_cull) {
 
 RE::TESObjectWEAP* CheckActorWeaponEquipped(const RE::Actor* a_actor) {
     if (RE::TESForm* equippedObject = a_actor->GetEquippedObject(false); equippedObject && equippedObject->Is(RE::FormType::Weapon)) {
-        RE::TESObjectWEAP* weapon = skyrim_cast<RE::TESObjectWEAP*>(equippedObject);
+        const auto weapon = skyrim_cast<RE::TESObjectWEAP*>(equippedObject);
         logger::info("EquippedObject: {}", weapon->GetName());
         return weapon;
     }
     return nullptr;
 }
 
-bool CheckKeyword(RE::FormID a_formID, const std::variant<RE::TESBoundObject*, RE::TESRace*>& a_form) {
+bool CheckKeyword(const RE::FormID a_formID, const std::variant<RE::TESBoundObject*, RE::TESRace*>& a_form) {
     if (RE::TESForm* form = RE::BGSKeyword::LookupByID(a_formID)) {
-        RE::BGSKeyword* myKeyword = skyrim_cast<RE::BGSKeyword*>(form);
-        std::vector<RE::BGSKeyword*> keywords = {myKeyword};
+        const auto myKeyword = skyrim_cast<RE::BGSKeyword*>(form);
+        const std::vector keywords = {myKeyword};
 
         if (const auto object = std::get_if<RE::TESBoundObject*>(&a_form)) {
             return (*object)->HasKeywordInArray(keywords, false);
@@ -184,11 +184,7 @@ bool CheckKeyword(RE::FormID a_formID, const std::variant<RE::TESBoundObject*, R
 }
 
 bool GetSwimming(RE::Actor* a_actor) {
-    if (a_actor->AsActorState()->IsSwimming()) {
-        return true;
-    } else {
-        return false;
-    }
+    return a_actor->AsActorState()->IsSwimming();
 }
 
 bool CheckActorAndObjectKeywords(RE::TESBoundObject* a_object, RE::Actor* a_actor) {
@@ -204,40 +200,43 @@ bool IsObjectAPotion(RE::TESBoundObject* a_object) {
         return false; 
     }
 
-    //return !alchemyItem->IsFood() && (alchemyItem->IsPoison() || alchemyItem->IsMedicine());
     std::string objectName = alchemyItem->GetName();
     std::ranges::transform(objectName, objectName.begin(),
                            [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return objectName.find("potion") != std::string::npos;
 }
 
-std::vector<std::string> ReadEditorIDsFromINISection(const std::string& section) {
-    const std::string iniFilePath = config::GetIniFilePath();
-    char buffer[4096];
-    GetPrivateProfileSectionA(section.c_str(), buffer, sizeof(buffer), iniFilePath.c_str());
 
-    std::vector<std::string> editorIDs;
-    char* ptr = buffer;
-    while (*ptr != '\0') {
-        std::string line(ptr);
-        std::string editorID = line.substr(0, line.find(';'));
-        std::erase_if(editorID, [](const unsigned char c) { return std::isspace(c); });
-        if (!editorID.empty()) {
-            std::ranges::transform(editorID, editorID.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            editorIDs.push_back(editorID);
+namespace
+{
+    std::vector<std::string> ReadEditorIDsFromINISection(const std::string& section) {
+        const std::string iniFilePath = config::GetIniFilePath();
+        char buffer[4096];
+        GetPrivateProfileSectionA(section.c_str(), buffer, sizeof(buffer), iniFilePath.c_str());
+
+        std::vector<std::string> editorIDs;
+        const char* ptr = buffer;
+        while (*ptr != '\0') {
+            std::string line(ptr);
+            std::string editorID = line.substr(0, line.find(';'));
+            std::erase_if(editorID, [](const unsigned char c) { return std::isspace(c); });
+            if (!editorID.empty()) {
+                std::ranges::transform(editorID, editorID.begin(), [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                editorIDs.push_back(editorID);
+            }
+            ptr += line.size() + 1;
         }
-        ptr += line.size() + 1;
+        return editorIDs;
     }
-    return editorIDs;
+    std::vector<std::string> ReadAllowedPotionsFromINI() {
+        return ReadEditorIDsFromINISection("AllowedPotions");
+    }
+
+    std::vector<std::string> ReadBlacklistedPotionsFromINI() {
+        return ReadEditorIDsFromINISection("BlacklistedPotions");
+    }
 }
 
-std::vector<std::string> ReadAllowedPotionsFromINI() {
-    return ReadEditorIDsFromINISection("AllowedPotions");
-}
-
-std::vector<std::string> ReadBlacklistedPotionsFromINI() {
-    return ReadEditorIDsFromINISection("BlacklistedPotions");
-}
 
 bool IsObjectBlacklisted(RE::TESBoundObject* a_object) {
     static const auto blacklistedEditorIDs = ReadBlacklistedPotionsFromINI();
@@ -294,16 +293,16 @@ void NotifyActorDrinkingLastPotion(RE::Actor* currentActor, const RE::TESBoundOb
 void LogActorData(RE::Actor* a_actor) {
     if (const auto actor_custom = ActorCustom(a_actor); actorDataMap.contains(actor_custom)) {
         const ActorData& data = actorDataMap[actor_custom];
-        logger::info("Ultimate Potion Animation NG - lastActor: {}", data.lastActor->GetName());
-        logger::info("Ultimate Potion Animation NG - lastObject: {}", data.lastObject->GetName());
-        logger::info("Ultimate Potion Animation NG - bDrinking: {}", data.bDrinking.load());
-        logger::info("Ultimate Potion Animation NG - bAnimationInProgress: {}", data.bAnimationInProgress.load());
+        logger::trace("Ultimate Potion Animation NG - lastActor: {}", data.lastActor->GetName());
+        logger::trace("Ultimate Potion Animation NG - lastObject: {}", data.lastObject->GetName());
+        logger::trace("Ultimate Potion Animation NG - bDrinking: {}", data.bDrinking.load());
+        logger::trace("Ultimate Potion Animation NG - bAnimationInProgress: {}", data.bAnimationInProgress.load());
     }
 }
 
-void EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBoundObject* a_object, std::uint64_t a_unk) {
-    logger::info("-----------------Logging Potion Equip event-------------------");
-    logger::info("Equipping potion: {} Actor: '{}'", a_object->GetName(), a_actor->GetName());
+void EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBoundObject* a_object, const std::uint64_t a_unk) {
+    logger::trace("-----------------Logging Potion Equip event-------------------");
+    logger::trace("Equipping potion: {} Actor: '{}'", a_object->GetName(), a_actor->GetName());
     if (const RE::AlchemyItem* a_potion = a_object->As<RE::AlchemyItem>()) {        
         AnimationEventSink* eventSink = GetOrCreateEventSink(a_actor, a_self, a_object, a_unk);
         if (a_actor->GetActorBase()->IsPlayer()) {
@@ -350,17 +349,17 @@ std::string AlchObjectGetModelPath(RE::TESBoundObject* a_object) {
 std::string GetGameDataPath() { return "Data\\meshes\\"; }
 
 std::string ConvertToAbsolutePath(const std::string& relativePath) {
-    std::string gameDataPath = GetGameDataPath();
+    const std::string gameDataPath = GetGameDataPath();
     return gameDataPath + relativePath;
 }
 
 bool DoesFileExist(const std::string& filePath) { return std::filesystem::exists(filePath); }
 
-void AnimObjectReplaceModelByFormID(RE::FormID a_formID, const char* newModelPath) {
+void AnimObjectReplaceModelByFormID(const RE::FormID a_formID, const char* newModelPath) {
     auto* form = RE::TESObjectANIO::LookupByID(a_formID);
     if (form) {
-        RE::TESObjectANIO* animObject = static_cast<RE::TESObjectANIO*>(form);
-        RE::TESModel* model = static_cast<RE::TESModel*>(animObject);
+        const auto animObject = static_cast<RE::TESObjectANIO*>(form);
+        const auto model = static_cast<RE::TESModel*>(animObject);
         if (model) {
             model->SetModel(newModelPath);
             const char* modelPath = model->GetModel();
