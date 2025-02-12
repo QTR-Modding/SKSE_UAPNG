@@ -35,6 +35,9 @@ void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink) {
     if (!eventSink->a_actor) return;
     logger::info("Processing potion animation event for Actor: '{}'", eventSink->a_actor.get()->GetName());
     eventSink->a_equipManager->EquipObject(eventSink->a_actor.get(), eventSink->a_object);
+    if (config::bEnableSpamPotions && eventSink->a_actor.get()->IsPlayerRef()) {
+        RE::SendUIMessage::SendInventoryUpdateMessage(eventSink->a_actor.get(),nullptr);
+    }
 }
 
 AnimationEventSink* GetOrCreateEventSink(RE::Actor* a_actor, RE::ActorEquipManager* a_self,
