@@ -152,10 +152,27 @@ void SetAnimationVariableBool(RE::Actor* a_actor, const char* variableName, cons
     }
 }
 
-void HideWeapon(RE::Actor* a_actor, const bool a_cull) {
+void HideWeapon(RE::Actor* a_actor, const bool a_cull, std::vector<bool>& cull_history) {
     const RE::BSFixedString nodeName("Weapon");
     if (const auto rootNode = a_actor->GetNodeByName(nodeName)) {
-        rootNode->CullNode(a_cull);
+        int i = 0;
+        RE::BSVisit::TraverseScenegraphObjects(rootNode, [&](RE::NiAVObject* a_object) -> RE::BSVisit::BSVisitControl {
+            //a_cull ? GetFlags().set(Flag::kHidden) : GetFlags().reset(Flag::kHidden);
+            if (a_cull) {
+                cull_history.push_back(a_object->GetAppCulled());
+                if (!cull_history.back()) {
+                    a_object->SetAppCulled(true);
+                }
+            }
+            else if (cull_history.empty()) {
+                a_object->SetAppCulled(false);
+            }
+            else {
+                a_object->SetAppCulled(cull_history[i]);
+            }
+            ++i;
+			return RE::BSVisit::BSVisitControl::kContinue;
+		});
     }
 }
 

@@ -9,7 +9,7 @@ void UpdateNode(RE::NiNode* node,
 void ScaleNode(RE::Actor* a_actor);
 void CloseMenu();
 void SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString);
-void HideWeapon(RE::Actor* a_actor, bool a_cull);
+void HideWeapon(RE::Actor* a_actor, bool a_cull,std::vector<bool>& cull_history);
 void NotifyActorDrinkingLastPotion(RE::Actor* currentActor, const RE::TESBoundObject* a_object = nullptr);
 void LogActorData(RE::Actor* a_actor);
 void EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBoundObject* a_object, std::uint64_t a_unk);

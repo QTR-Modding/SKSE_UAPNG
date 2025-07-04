@@ -72,6 +72,11 @@ void CleanupAnimationEvent(AnimationEventSink* eventSink, const bool unHideWeapo
 
     if (unHideWeapon) {
         HideWeapon(eventSink->a_actor.get(), false);
+        auto a_actor = eventSink->a_actor;
+        //SKSE::GetTaskInterface()->AddTask([a_actor] (){
+        //    RE::BSTempEffectWeaponBlood::ClearEffectForWeapon(a_actor.get()->GetNodeByName("Weapon"));
+        //}
+        //);
     }
 
     SendAnimationEvent(eventSink->a_actor.get(), "HeadtrackingOn");
