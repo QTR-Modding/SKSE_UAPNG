@@ -151,11 +151,26 @@ void SetAnimationVariableBool(RE::Actor* a_actor, const char* variableName, cons
     }
 }
 
-void HideWeapon(RE::Actor* a_actor, const bool a_cull) {
+std::vector<RE::NiPointer<RE::NiAVObject>> HideWeapon(RE::Actor* a_actor) {
+    std::vector<RE::NiPointer<RE::NiAVObject>> hiddenNodes;
     const RE::BSFixedString nodeName("Weapon");
     if (const auto rootNode = a_actor->GetNodeByName(nodeName)) {
-        rootNode->CullNode(a_cull);
+        RE::BSVisit::TraverseScenegraphObjects(rootNode, [&](RE::NiAVObject* object) {
+            if (!object->GetAppCulled()) {
+                hiddenNodes.emplace_back(object);
+                object->SetAppCulled(true);
+            }
+            return RE::BSVisit::BSVisitControl::kContinue;
+        });
     }
+    return hiddenNodes;
+}
+
+void RestoreWeaponVisibility(std::vector<RE::NiPointer<RE::NiAVObject>>& hiddenNodes) {
+    for (const auto& node : hiddenNodes) {
+        node->SetAppCulled(false);
+    }
+    hiddenNodes.clear();
 }
 
 RE::TESObjectWEAP* CheckActorWeaponEquipped(const RE::Actor* a_actor) {
@@ -282,7 +297,7 @@ bool EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBound
                 logger::error("Invalid movement type value: {}", config::iMovementType);
                 break;
         }
-        HideWeapon(a_actor, true);
+        eventSink->hiddenWeaponNodes = HideWeapon(a_actor);
         eventSink->CompleteSetup();
         return true;
     } else {

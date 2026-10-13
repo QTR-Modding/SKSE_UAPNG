@@ -84,12 +84,12 @@ void AnimationEventSink::CompleteSetup() {
 }
 
 void AnimationEventSink::Cleanup(const bool unHideWeapon) {
+    if (unHideWeapon) {
+        RestoreWeaponVisibility(hiddenWeaponNodes);
+    }
     const auto actor = a_actor.get();
     if (actor) {
         logger::trace("Cleaning up AnimationEventSink for Actor: '{}'", actor->GetName());
-        if (unHideWeapon) {
-            HideWeapon(actor.get(), false);
-        }
         SendAnimationEvent(actor.get(), "HeadtrackingOn");
         SetAnimationVariableBool(actor.get(), "tdmHeadtrackingBehavior", true);
         SetAnimationVariableBool(actor.get(), "bPlayEquipSound", false);
