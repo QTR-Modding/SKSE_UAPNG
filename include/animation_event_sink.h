@@ -45,5 +45,6 @@ struct AnimationEventSink : public RE::BSTEventSink<RE::BSAnimationGraphEvent>,
     RE::TESBoundObject* a_object{nullptr};
     std::uint64_t a_unk{0};
     const RE::BSTSmartPointer<RE::BShkbAnimationGraph> animationGraph;
+    std::vector<RE::NiPointer<RE::NiAVObject>> hiddenWeaponNodes;
     std::atomic<State> state{State::Starting};
 };
