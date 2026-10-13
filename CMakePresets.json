@@ -35,14 +35,18 @@
       "name": "release",
       "inherits": [ "base" ],
       "displayName": "Release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_SHARED_LINKER_FLAGS_RELEASE": "/OPT:REF /INCREMENTAL:NO"
+      }
     },
     {
       "name": "relwithdebuginfo",
       "inherits": [ "base" ],
       "displayName": "RelWithDebInfo",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO": "/DEBUG /OPT:REF /INCREMENTAL:NO"
       }
     }
   ]
