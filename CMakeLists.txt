@@ -70,10 +70,12 @@ add_commonlibsse_plugin(
 )
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
 target_precompile_headers(${PROJECT_NAME} PRIVATE include/PCH.h) # <--- PCH.h is required!
+find_path(CLIB_UTILS_QTR_INCLUDE_DIRS "CLibUtilsQTR/FormReader.hpp" REQUIRED)
 target_include_directories(
 	${PROJECT_NAME}
 	PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${CLIB_UTILS_QTR_INCLUDE_DIRS}
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE IS_HOST_PLUGIN)

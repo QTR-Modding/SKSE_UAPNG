@@ -4,6 +4,13 @@
   "version-semver": "2.8.0",
   "builtin-baseline": "a1212c93cabaa9c5c36c1ffdb4bddd59fdf31e43",
   "dependencies": [
+    {
+      "name": "clib-utils-qtr",
+      "default-features": false,
+      "features": [
+        "skyrim"
+      ]
+    },
     "fmt",
     "spdlog",
     "rapidcsv",

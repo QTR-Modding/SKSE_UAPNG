@@ -5,7 +5,6 @@
 #include <filesystem>
 #include <string>
 #include <vector>
-#include <windows.h>
 
 void SendDebugNotification(const char* message, const char* soundToPlay, const bool cancelIfAlreadyQueued) {
     if (config::bEnableNotifications) {
@@ -206,47 +205,8 @@ bool IsObjectAPotion(RE::TESBoundObject* a_object) {
 }
 
 
-namespace
-{
-    std::vector<std::string> ReadEditorIDsFromINISection(const std::string& section) {
-        const std::string iniFilePath = config::GetIniFilePath();
-        char buffer[4096];
-        GetPrivateProfileSectionA(section.c_str(), buffer, sizeof(buffer), iniFilePath.c_str());
-
-        std::vector<std::string> editorIDs;
-        const char* ptr = buffer;
-        while (*ptr != '\0') {
-            std::string line(ptr);
-            std::string editorID = line.substr(0, line.find(';'));
-            std::erase_if(editorID, [](const unsigned char c) { return std::isspace(c); });
-            if (!editorID.empty()) {
-                std::ranges::transform(editorID, editorID.begin(), [](const unsigned char c) { return static_cast<char>(std::tolower(c)); });
-                editorIDs.push_back(editorID);
-            }
-            ptr += line.size() + 1;
-        }
-        return editorIDs;
-    }
-    std::vector<std::string> ReadAllowedPotionsFromINI() {
-        return ReadEditorIDsFromINISection("AllowedPotions");
-    }
-
-    std::vector<std::string> ReadBlacklistedPotionsFromINI() {
-        return ReadEditorIDsFromINISection("BlacklistedPotions");
-    }
-}
-
-
 bool IsObjectBlacklisted(RE::TESBoundObject* a_object) {
-    static const auto blacklistedEditorIDs = ReadBlacklistedPotionsFromINI();
-    const auto& objectFormID = a_object->GetFormID();
-    bool found = false;
-    for (const auto& editorID : blacklistedEditorIDs) {
-        if (const auto iniObject = RE::TESForm::LookupByEditorID(editorID); iniObject && iniObject->GetFormID() == objectFormID) {
-            found = true;
-            break;
-        }
-    }
+    const bool found = std::ranges::contains(config::potionFormLists.blacklisted, a_object);
     if (found){
         logger::info("-----------------Checking black list--------------------------");
         logger::info("Potion: {} found in BlacklistedPotions", a_object->GetName());
@@ -258,16 +218,7 @@ bool IsObjectWhitelisted(RE::TESBoundObject* a_object) {
     if (a_object->GetFormType() != RE::FormType::AlchemyItem) {
         return false;
     }
-    static const auto allowedEditorIDs = ReadAllowedPotionsFromINI();
-    const auto& objectFormID = a_object->GetFormID();
-    bool found = false;
-    for (const auto& editorID : allowedEditorIDs) {
-        if (const auto iniObject = RE::TESForm::LookupByEditorID(editorID); iniObject && iniObject->GetFormID() == objectFormID) {
-            found = true;
-            break;
-        }
-    }
-    return found;
+    return std::ranges::contains(config::potionFormLists.allowed, a_object);
 }
 
 bool IsActorReadyForAnimation(RE::Actor* a_actor) {

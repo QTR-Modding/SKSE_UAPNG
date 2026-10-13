@@ -7,6 +7,7 @@
 void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kDataLoaded:
+            config::ReadPotionFormLists();
             EquipObjectOverRide::Install();
             logger::info("Ultimate Potion Animation NG - Plugin Ready");            
             break;
