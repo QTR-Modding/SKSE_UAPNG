@@ -4,92 +4,126 @@
 #include "config.h"
 
 AnimationEventSink::AnimationEventSink(RE::ActorEquipManager* equipManager, RE::Actor* actor,
-                                       RE::TESBoundObject* object, const std::uint64_t unk)
-    : a_equipManager(equipManager), a_actor(actor), a_object(object), a_unk(unk) {}
+                                       RE::TESBoundObject* object, const std::uint64_t unk,
+                                       RE::BSTSmartPointer<RE::BShkbAnimationGraph> graph)
+    : a_equipManager(equipManager), actorKey(actor), a_actor(actor->GetHandle()), a_object(object), a_unk(unk),
+      animationGraph(std::move(graph)) {}
 
 RE::BSEventNotifyControl AnimationEventSink::ProcessEvent(
     const RE::BSAnimationGraphEvent* a_event, RE::BSTEventSource<RE::BSAnimationGraphEvent>*) {
-    if (marked_for_delete.load()) return RE::BSEventNotifyControl::kContinue;
-    if (a_event && a_actor) {
+    const auto keepAlive = shared_from_this();
+    const auto currentState = state.load();
+    if (currentState == State::StopRequested || currentState == State::Retiring) return RE::BSEventNotifyControl::kContinue;
+    if (a_event) {
+        const auto actor = a_actor.get();
         if (const RE::BSFixedString& eventTag = a_event->tag; eventTag == "AnimObjLoad" && a_event->payload == "AnimObjectDrinkPotion") {
-            ActorData& data = actorDataMap[a_actor];
-            data.waitForUIHeal.store(true);
+            if (actor) {
+                GetActorData(actorKey).waitForUIHeal.store(true);
+            }
         }
         else if (eventTag == "IUHeal") {
-            if (ActorData& data = actorDataMap[a_actor]; data.waitForUIHeal.load()) {
+            if (ActorData& data = GetActorData(actorKey); actor && data.waitForUIHeal.load()) {
                 data.waitForUIHeal.store(false);
                 data.bDrinking.store(false);
-                ProcessPotionAnimationEvent(this);
+                ProcessPotionAnimationEvent(this, actor.get());
             }
         } else if (eventTag == "DrinkPotionStop" || eventTag == "EnableBumper" || eventTag == "MTState") {
             logger::trace("AnimationEventSink::ProcessEvent:");
-            logger::trace("Removing event sink for Actor: '{}'", a_actor.get()->GetName());
+            if (actor) {
+                logger::trace("Removing event sink for Actor: '{}'", actor->GetName());
+            }
             CleanupAnimationEvent(this, true);
-            RemoveEventSink(this);
         }
     }
     return RE::BSEventNotifyControl::kContinue;
 }
 
-void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink) {
-    if (!eventSink->a_actor) return;
-    logger::info("Processing potion animation event for Actor: '{}'", eventSink->a_actor.get()->GetName());
-    eventSink->a_equipManager->EquipObject(eventSink->a_actor.get(), eventSink->a_object);
-    if (config::bEnableSpamPotions && eventSink->a_actor.get()->IsPlayerRef()) {
-        RE::SendUIMessage::SendInventoryUpdateMessage(eventSink->a_actor.get(),nullptr);
+void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink, RE::Actor* actor) {
+    logger::info("Processing potion animation event for Actor: '{}'", actor->GetName());
+    eventSink->a_equipManager->EquipObject(actor, eventSink->a_object);
+    if (config::bEnableSpamPotions && actor->IsPlayerRef()) {
+        RE::SendUIMessage::SendInventoryUpdateMessage(actor,nullptr);
     }
 }
 
-AnimationEventSink* GetOrCreateEventSink(RE::Actor* a_actor, RE::ActorEquipManager* a_self,
-                                         RE::TESBoundObject* a_object, const std::uint64_t a_unk) {
-    AnimationEventSink* eventSink = nullptr;
-    if (!a_actor) return eventSink;
+std::shared_ptr<AnimationEventSink> CreateEventSink(RE::Actor* a_actor, RE::ActorEquipManager* a_self,
+                                                  RE::TESBoundObject* a_object, const std::uint64_t a_unk) {
     const auto actor_custom = ActorCustom(a_actor);
-    if (const auto it = actorEventSink.find(actor_custom); it != actorEventSink.end()) {
-        eventSink = it->second.get();
-    } else {
-        eventSink = new AnimationEventSink(a_self, a_actor, a_object, a_unk);
-        actorEventSink.emplace(a_actor, std::unique_ptr<AnimationEventSink>(eventSink));
+    std::uint64_t loadGeneration;
+    {
+        const std::lock_guard lock(actorAnimationState.mutex);
+        if (pause.load()) return {};
+        loadGeneration = actorAnimationState.loadGeneration;
     }
+
+    auto graph = GetActorAnimationGraph(a_actor);
+    if (!graph) return {};
+    auto eventSink = std::make_shared<AnimationEventSink>(a_self, a_actor, a_object, a_unk, std::move(graph));
+    const std::lock_guard lock(actorAnimationState.mutex);
+    if (pause.load() || loadGeneration != actorAnimationState.loadGeneration) return {};
+    actorAnimationState.actorEventSink.emplace(actor_custom, eventSink);
     return eventSink;
 }
 
 void CleanupAnimationEvent(AnimationEventSink* eventSink, const bool unHideWeapon) {
-    if (!eventSink || !eventSink->a_actor) {
-        logger::warn("Error ++++++++++++++++++++++ CleanupAnimationEvent Failed: eventSink or eventSink->a_actor is null.");
-        return;
+    auto expected = AnimationEventSink::State::Starting;
+    if (eventSink->state.compare_exchange_strong(expected, AnimationEventSink::State::StopRequested)) return;
+    expected = AnimationEventSink::State::Active;
+    if (eventSink->state.compare_exchange_strong(expected, AnimationEventSink::State::Retiring)) {
+        eventSink->Cleanup(unHideWeapon);
+    }
+}
+
+void AnimationEventSink::CompleteSetup() {
+    auto expected = State::Starting;
+    if (state.compare_exchange_strong(expected, State::Active)) return;
+    expected = State::StopRequested;
+    if (state.compare_exchange_strong(expected, State::Retiring)) {
+        Cleanup(true);
+    }
+}
+
+void AnimationEventSink::Cleanup(const bool unHideWeapon) {
+    const auto actor = a_actor.get();
+    if (actor) {
+        logger::trace("Cleaning up AnimationEventSink for Actor: '{}'", actor->GetName());
+        if (unHideWeapon) {
+            HideWeapon(actor.get(), false);
+        }
+        SendAnimationEvent(actor.get(), "HeadtrackingOn");
+        SetAnimationVariableBool(actor.get(), "tdmHeadtrackingBehavior", true);
+        SetAnimationVariableBool(actor.get(), "bPlayEquipSound", false);
     }
 
-
-    logger::trace("Cleaning up AnimationEventSink for Actor: '{}'", eventSink->a_actor.get()->GetName());
-
-    eventSink->marked_for_delete.store(true);
-
-    ActorData& data = actorDataMap[eventSink->a_actor];
-    data.bAnimationInProgress.store(false);
+    animationGraph->GetEventSource<RE::BSAnimationGraphEvent>()->RemoveEventSink(this);
+    RemoveEventSink(this);
+    ActorData& data = GetActorData(actorKey);
     data.bDrinking.store(false);
     data.waitForUIHeal.store(false);
-
-    if (unHideWeapon) {
-        HideWeapon(eventSink->a_actor.get(), false);
-    }
-
-    SendAnimationEvent(eventSink->a_actor.get(), "HeadtrackingOn");
-    SetAnimationVariableBool(eventSink->a_actor.get(), "tdmHeadtrackingBehavior", true);
-    SetAnimationVariableBool(eventSink->a_actor.get(), "bPlayEquipSound", false);
-
-    eventSink->a_actor.get()->RemoveAnimationGraphEventSink(eventSink);
-
+    data.bAnimationInProgress.store(false);
     logger::trace("EventSink removed.");
-
 }
 
 void RemoveEventSink(const AnimationEventSink* sink) {
-    if (!sink) return;
-    if (const auto it = actorEventSink.find(sink->a_actor); it != actorEventSink.end()) {
-        actorEventSink.erase(it);
+    {
+        const std::lock_guard lock(actorAnimationState.mutex);
+        if (const auto it = actorAnimationState.actorEventSink.find(sink->actorKey);
+            it != actorAnimationState.actorEventSink.end() && it->second.get() == sink) {
+            actorAnimationState.actorEventSink.erase(it);
+        }
     }
-    logger::info("AnimationEventSink deleted.");
+    logger::info("AnimationEventSink removed.");
+}
+
+ActorData& GetActorData(const ActorCustom& actor) {
+    const std::lock_guard lock(actorAnimationState.mutex);
+    return actorAnimationState.actorDataMap[actor];
+}
+
+ActorData* FindActorData(const ActorCustom& actor) {
+    const std::lock_guard lock(actorAnimationState.mutex);
+    const auto it = actorAnimationState.actorDataMap.find(actor);
+    return it != actorAnimationState.actorDataMap.end() ? &it->second : nullptr;
 }
 
 ActorCustom::ActorCustom(const RE::FormID formid, const RE::FormID refid): formid(formid), refid(refid) {}

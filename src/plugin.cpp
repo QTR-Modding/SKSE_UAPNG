@@ -2,6 +2,7 @@
 #include "equip_object_override.h"
 #include "logger.h"
 #include "animation_event_sink.h"
+#include "actor_data.h"
 
 
 void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
@@ -13,7 +14,13 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
             {
-                pause.store(true);
+                std::map<ActorCustom, std::shared_ptr<AnimationEventSink>> eventSinks;
+                {
+                    const std::lock_guard lock(actorAnimationState.mutex);
+                    pause.store(true);
+                    ++actorAnimationState.loadGeneration;
+                    eventSinks.swap(actorAnimationState.actorEventSink);
+                }
 
                 auto settings = config::ReadSettings();
                 config::iMovementType = settings["iMovementType"];
@@ -21,11 +28,10 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
                 config::bEnableSpamPotions = settings["bEnableSpamPotions"] != 0;
                 config::bExcludePlayer = settings["bExcludePlayer"] != 0;
 
-                for (auto& eventSink : actorEventSink | std::views::values) {
+                for (auto& eventSink : eventSinks | std::views::values) {
                     CleanupAnimationEvent(eventSink.get(), true);
                 }
 
-                actorEventSink.clear();
                 
                 logger::info("Ultimate Potion Animation NG - Post Load Game");
                 logger::info("Settings loaded: iMovementType: {}, bEnableNotifications: {}, bEnableSpamPotions: {}", config::iMovementType, config::bEnableNotifications, config::bEnableSpamPotions);

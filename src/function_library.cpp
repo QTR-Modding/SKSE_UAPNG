@@ -224,9 +224,7 @@ bool IsObjectWhitelisted(RE::TESBoundObject* a_object) {
 bool IsActorReadyForAnimation(RE::Actor* a_actor) {
     const int currentDefaultState = GetAnimationVariableInt(a_actor, "currentDefaultState");
     const bool isPaired = GetAnimationVariableBool(a_actor, "bIsSynced");
-    const auto actor_custom = ActorCustom(a_actor);
-    return (!actorDataMap.contains(actor_custom) || !actorDataMap[actor_custom].bAnimationInProgress.load()) &&
-           (currentDefaultState < 10 || currentDefaultState > 20) && !isPaired && !a_actor->IsOnMount() &&
+    return (currentDefaultState < 10 || currentDefaultState > 20) && !isPaired && !a_actor->IsOnMount() &&
            !a_actor->IsInMidair() && !GetSwimming(a_actor);
 }
 
@@ -241,8 +239,8 @@ void NotifyActorDrinkingLastPotion(RE::Actor* currentActor, const RE::TESBoundOb
 }
 
 void LogActorData(RE::Actor* a_actor) {
-    if (const auto actor_custom = ActorCustom(a_actor); actorDataMap.contains(actor_custom)) {
-        const ActorData& data = actorDataMap[actor_custom];
+    if (const auto dataPtr = FindActorData(ActorCustom(a_actor))) {
+        const ActorData& data = *dataPtr;
         logger::trace("Ultimate Potion Animation NG - lastActor: {}", data.lastActor->GetName());
         logger::trace("Ultimate Potion Animation NG - lastObject: {}", data.lastObject->GetName());
         logger::trace("Ultimate Potion Animation NG - bDrinking: {}", data.bDrinking.load());
@@ -250,18 +248,25 @@ void LogActorData(RE::Actor* a_actor) {
     }
 }
 
-void EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBoundObject* a_object, const std::uint64_t a_unk) {
+RE::BSTSmartPointer<RE::BShkbAnimationGraph> GetActorAnimationGraph(RE::Actor* a_actor) {
+    RE::BSAnimationGraphManagerPtr graphManager;
+    a_actor->GetAnimationGraphManager(graphManager);
+    return graphManager && !graphManager->graphs.empty() ? graphManager->graphs.front() : nullptr;
+}
+
+bool EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBoundObject* a_object, const std::uint64_t a_unk) {
     logger::trace("-----------------Logging Potion Equip event-------------------");
     logger::trace("Equipping potion: {} Actor: '{}'", a_object->GetName(), a_actor->GetName());
     if (const RE::AlchemyItem* a_potion = a_object->As<RE::AlchemyItem>()) {        
-        AnimationEventSink* eventSink = GetOrCreateEventSink(a_actor, a_self, a_object, a_unk);
+        const auto eventSink = CreateEventSink(a_actor, a_self, a_object, a_unk);
+        if (!eventSink) return false;
         if (a_actor->GetActorBase()->IsPlayer()) {
             PlaySound(0x03C7BA);
         }
-        a_actor->AddAnimationGraphEventSink(eventSink);
-        SendAnimationEvent(eventSink->a_actor.get(), "HeadtrackingOff");
-        SetAnimationVariableBool(eventSink->a_actor.get(), "tdmHeadtrackingBehavior", false);
-        SetAnimationVariableBool(eventSink->a_actor.get(), "bPlayEquipSound", true);
+        eventSink->animationGraph->GetEventSource<RE::BSAnimationGraphEvent>()->AddEventSink(eventSink.get());
+        SendAnimationEvent(a_actor, "HeadtrackingOff");
+        SetAnimationVariableBool(a_actor, "tdmHeadtrackingBehavior", false);
+        SetAnimationVariableBool(a_actor, "bPlayEquipSound", true);
 
         switch (config::iMovementType) {
             case 0:
@@ -278,9 +283,12 @@ void EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBound
                 break;
         }
         HideWeapon(a_actor, true);
+        eventSink->CompleteSetup();
+        return true;
     } else {
         logger::error("ERROR ++++++++++++++++ Failed to cast TESBoundObject to AlchemyItem for actor '{}'", a_actor->GetName());
     }
+    return false;
 }
 
 std::string AlchObjectGetModelPath(RE::TESBoundObject* a_object) {
