@@ -65,7 +65,7 @@ include(${COMMONLIB_SRC_DIR}/cmake/CommonLibSSE.cmake)
 
 add_commonlibsse_plugin(
   ${PROJECT_NAME}
-  AUTHOR AUTHOR_NAME
+  AUTHOR ${AUTHOR_NAME}
   SOURCES ${headers} ${sources}
 )
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard

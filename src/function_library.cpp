@@ -9,7 +9,7 @@
 
 void SendDebugNotification(const char* message, const char* soundToPlay, const bool cancelIfAlreadyQueued) {
     if (config::bEnableNotifications) {
-        RE::DebugNotification(message, soundToPlay, cancelIfAlreadyQueued);
+        RE::SendHUDMessage::ShowHUDMessage(message, soundToPlay, cancelIfAlreadyQueued);
     }   
 }
 
