@@ -8,7 +8,7 @@ void UpdateNode(RE::NiNode* node,
                 float updateTime = 0.f);
 void ScaleNode(RE::Actor* a_actor);
 void CloseMenu();
-void SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString);
+bool SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString);
 std::vector<RE::NiPointer<RE::NiAVObject>> HideWeapon(RE::Actor* a_actor);
 void RestoreWeaponVisibility(std::vector<RE::NiPointer<RE::NiAVObject>>& hiddenNodes);
 void NotifyActorDrinkingLastPotion(RE::Actor* currentActor, const RE::TESBoundObject* a_object = nullptr);

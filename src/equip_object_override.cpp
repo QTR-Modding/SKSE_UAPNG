@@ -30,8 +30,6 @@ void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_acto
             data.bDrinking.store(true);
             AnimObjectReplaceModelByFormID(0x0D36C8, AlchObjectGetModelPath(a_object).c_str());
             if (!EquipPotion(a_actor, a_self, a_object, a_unk)) {
-                data.bDrinking.store(false);
-                data.bAnimationInProgress.store(false);
                 func(a_self, a_actor, a_object, a_unk);
                 return;
             }
