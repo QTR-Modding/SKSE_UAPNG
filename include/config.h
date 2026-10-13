@@ -2,17 +2,21 @@
 
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
+#include <vector>
 
 namespace config {
     extern int iMovementType;
     extern bool bEnableNotifications;
     extern bool bEnableSpamPotions;
     extern bool bExcludePlayer;
-    extern std::unordered_set<std::string> allowedPotionNames;
+    struct PotionFormLists {
+        std::vector<RE::TESBoundObject*> blacklisted;
+        std::vector<RE::AlchemyItem*> allowed;
+    };
+    extern PotionFormLists potionFormLists;
 
     std::unordered_map<std::string, int> ReadSettings();
-    void ReadAllowedPotionNames();
+    void ReadPotionFormLists();
     std::string GetIniFilePath();
     int GetIniSetting(const char* settingName, int defaultValue);
     void SetIniSetting(const char* settingName, int value); 
