@@ -2,10 +2,10 @@
 
 struct AnimationEventSink;
 
-void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink);
+void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink, RE::Actor* actor);
 std::vector<AnimationEventSink*> GetAllEventSinks();
-AnimationEventSink* GetOrCreateEventSink(RE::Actor* a_actor, RE::ActorEquipManager* a_self,
-                                         RE::TESBoundObject* a_object, std::uint64_t a_unk);
+std::shared_ptr<AnimationEventSink> CreateEventSink(RE::Actor* a_actor, RE::ActorEquipManager* a_self,
+                                                  RE::TESBoundObject* a_object, std::uint64_t a_unk);
 void CleanupAnimationEvent(AnimationEventSink* eventSink, bool unHideWeapon);
 void RemoveEventSink(const AnimationEventSink* sink);
 
@@ -28,17 +28,22 @@ struct ActorCustom
     [[nodiscard]] RE::Actor* get() const;
 };
 
-inline std::map<ActorCustom, std::unique_ptr<AnimationEventSink>> actorEventSink;
+struct AnimationEventSink : public RE::BSTEventSink<RE::BSAnimationGraphEvent>,
+                            public std::enable_shared_from_this<AnimationEventSink> {
+    enum class State { Starting, Active, StopRequested, Retiring };
 
-struct AnimationEventSink : public RE::BSTEventSink<RE::BSAnimationGraphEvent> {
     AnimationEventSink(RE::ActorEquipManager* equipManager, RE::Actor* actor, RE::TESBoundObject* object,
-                       std::uint64_t unk);
+                       std::uint64_t unk, RE::BSTSmartPointer<RE::BShkbAnimationGraph> graph);
     RE::BSEventNotifyControl ProcessEvent(const RE::BSAnimationGraphEvent* a_event,
                                           RE::BSTEventSource<RE::BSAnimationGraphEvent>*) override;
+    void CompleteSetup();
+    void Cleanup(bool unHideWeapon);
 
     RE::ActorEquipManager* a_equipManager{nullptr};
-    ActorCustom a_actor;
+    const ActorCustom actorKey;
+    RE::ActorHandle a_actor;
     RE::TESBoundObject* a_object{nullptr};
     std::uint64_t a_unk{0};
-    std::atomic<bool> marked_for_delete = false;
+    const RE::BSTSmartPointer<RE::BShkbAnimationGraph> animationGraph;
+    std::atomic<State> state{State::Starting};
 };

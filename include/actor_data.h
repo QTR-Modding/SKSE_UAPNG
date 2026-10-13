@@ -11,6 +11,16 @@ struct ActorData {
     std::atomic<bool> waitForUIHeal;
 };
 
-inline std::map<ActorCustom, ActorData> actorDataMap;
+struct ActorAnimationState {
+    std::mutex mutex;
+    std::uint64_t loadGeneration{};
+    std::map<ActorCustom, ActorData> actorDataMap;
+    std::map<ActorCustom, std::shared_ptr<AnimationEventSink>> actorEventSink;
+};
+
+inline ActorAnimationState actorAnimationState;
+
+ActorData& GetActorData(const ActorCustom& actor);
+ActorData* FindActorData(const ActorCustom& actor);
 
 enum class ActorState { PLAYER_FIRST_PERSON, PLAYER_THIRD_PERSON, OTHER };
