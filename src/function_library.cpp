@@ -96,15 +96,11 @@ std::vector<std::string> GetMagicEffectNames(RE::TESBoundObject* a_object) {
     return effectNames;
 }
 
-void SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString) {
-    if (const auto animGraphHolder = static_cast<RE::IAnimationGraphManagerHolder*>(a_actor)) {
-        animGraphHolder->NotifyAnimationGraph(AnimationString);
-        logger::trace("Sending animation event: '{}' Actor: '{}'", AnimationString,
-                      a_actor->GetName());
-    } else {
-        logger::error("Failed to get animGraphHolder for Actor: '{}'",
-                      a_actor->GetName());
-    }
+bool SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString) {
+    const bool result = a_actor->NotifyAnimationGraph(AnimationString);
+    logger::trace("Animation event: '{}' Actor: '{}' ({:08X}) Triggered transition: {}", AnimationString,
+                  a_actor->GetName(), a_actor->GetFormID(), result);
+    return result;
 }
 
 int GetAnimationVariableInt(RE::Actor* a_actor, const std::string& variableName) {
@@ -239,8 +235,11 @@ bool IsObjectWhitelisted(RE::TESBoundObject* a_object) {
 bool IsActorReadyForAnimation(RE::Actor* a_actor) {
     const int currentDefaultState = GetAnimationVariableInt(a_actor, "currentDefaultState");
     const bool isPaired = GetAnimationVariableBool(a_actor, "bIsSynced");
-    return (currentDefaultState < 10 || currentDefaultState > 20) && !isPaired && !a_actor->IsOnMount() &&
-           !a_actor->IsInMidair() && !GetSwimming(a_actor);
+    const bool ready = (currentDefaultState < 10 || currentDefaultState > 20) && !isPaired && !a_actor->IsOnMount() &&
+                       !a_actor->IsInMidair() && !GetSwimming(a_actor);
+    logger::trace("Potion animation readiness for Actor: '{}' ({:08X}): ready={}, currentDefaultState={}, bIsSynced={}",
+                  a_actor->GetName(), a_actor->GetFormID(), ready, currentDefaultState, isPaired);
+    return ready;
 }
 
 void NotifyActorDrinkingLastPotion(RE::Actor* currentActor, const RE::TESBoundObject* lastEquippedObject) {
@@ -274,35 +273,50 @@ bool EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBound
     logger::trace("Equipping potion: {} Actor: '{}'", a_object->GetName(), a_actor->GetName());
     if (const RE::AlchemyItem* a_potion = a_object->As<RE::AlchemyItem>()) {        
         const auto eventSink = CreateEventSink(a_actor, a_self, a_object, a_unk);
-        if (!eventSink) return false;
-        if (a_actor->GetActorBase()->IsPlayer()) {
-            PlaySound(0x03C7BA);
+        if (!eventSink) {
+            ActorData& data = GetActorData(ActorCustom(a_actor));
+            data.bDrinking.store(false);
+            data.bAnimationInProgress.store(false);
+            return false;
         }
         eventSink->animationGraph->GetEventSource<RE::BSAnimationGraphEvent>()->AddEventSink(eventSink.get());
         SendAnimationEvent(a_actor, "HeadtrackingOff");
         SetAnimationVariableBool(a_actor, "tdmHeadtrackingBehavior", false);
         SetAnimationVariableBool(a_actor, "bPlayEquipSound", true);
 
+        bool animationStarted = false;
         switch (config::iMovementType) {
             case 0:
-                SendAnimationEvent(a_actor, "DrinkPotionStart");
+                animationStarted = SendAnimationEvent(a_actor, "DrinkPotionStart");
                 break;
             case 1:
-                SendAnimationEvent(a_actor, "DrinkPotion_Slow");
+                animationStarted = SendAnimationEvent(a_actor, "DrinkPotion_Slow");
                 break;
             case 2:
-                SendAnimationEvent(a_actor, "DrinkPotion_NoMove");
+                animationStarted = SendAnimationEvent(a_actor, "DrinkPotion_NoMove");
                 break;
             default:
                 logger::error("Invalid movement type value: {}", config::iMovementType);
                 break;
         }
-        eventSink->hiddenWeaponNodes = HideWeapon(a_actor);
+        if (animationStarted) {
+            if (a_actor->GetActorBase()->IsPlayer()) {
+                PlaySound(0x03C7BA);
+            }
+            eventSink->hiddenWeaponNodes = HideWeapon(a_actor);
+        } else {
+            logger::trace("Potion animation start rejected for Actor: '{}' ({:08X}); requesting cleanup",
+                          a_actor->GetName(), a_actor->GetFormID());
+            CleanupAnimationEvent(eventSink.get(), true);
+        }
         eventSink->CompleteSetup();
-        return true;
+        return animationStarted;
     } else {
         logger::error("ERROR ++++++++++++++++ Failed to cast TESBoundObject to AlchemyItem for actor '{}'", a_actor->GetName());
     }
+    ActorData& data = GetActorData(ActorCustom(a_actor));
+    data.bDrinking.store(false);
+    data.bAnimationInProgress.store(false);
     return false;
 }
 
