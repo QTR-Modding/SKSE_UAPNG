@@ -98,8 +98,8 @@ std::vector<std::string> GetMagicEffectNames(RE::TESBoundObject* a_object) {
 
 bool SendAnimationEvent(RE::Actor* a_actor, const char* AnimationString) {
     const bool result = a_actor->NotifyAnimationGraph(AnimationString);
-    logger::trace("Sending animation event: '{}' Actor: '{}'", AnimationString,
-                  a_actor->GetName());
+    logger::trace("Animation event: '{}' Actor: '{}' ({:08X}) Triggered transition: {}", AnimationString,
+                  a_actor->GetName(), a_actor->GetFormID(), result);
     return result;
 }
 
@@ -235,8 +235,11 @@ bool IsObjectWhitelisted(RE::TESBoundObject* a_object) {
 bool IsActorReadyForAnimation(RE::Actor* a_actor) {
     const int currentDefaultState = GetAnimationVariableInt(a_actor, "currentDefaultState");
     const bool isPaired = GetAnimationVariableBool(a_actor, "bIsSynced");
-    return (currentDefaultState < 10 || currentDefaultState > 20) && !isPaired && !a_actor->IsOnMount() &&
-           !a_actor->IsInMidair() && !GetSwimming(a_actor);
+    const bool ready = (currentDefaultState < 10 || currentDefaultState > 20) && !isPaired && !a_actor->IsOnMount() &&
+                       !a_actor->IsInMidair() && !GetSwimming(a_actor);
+    logger::trace("Potion animation readiness for Actor: '{}' ({:08X}): ready={}, currentDefaultState={}, bIsSynced={}",
+                  a_actor->GetName(), a_actor->GetFormID(), ready, currentDefaultState, isPaired);
+    return ready;
 }
 
 void NotifyActorDrinkingLastPotion(RE::Actor* currentActor, const RE::TESBoundObject* lastEquippedObject) {
@@ -302,6 +305,8 @@ bool EquipPotion(RE::Actor* a_actor, RE::ActorEquipManager* a_self, RE::TESBound
             }
             eventSink->hiddenWeaponNodes = HideWeapon(a_actor);
         } else {
+            logger::trace("Potion animation start rejected for Actor: '{}' ({:08X}); requesting cleanup",
+                          a_actor->GetName(), a_actor->GetFormID());
             CleanupAnimationEvent(eventSink.get(), true);
         }
         eventSink->CompleteSetup();

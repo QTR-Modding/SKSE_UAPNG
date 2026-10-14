@@ -17,18 +17,20 @@ RE::BSEventNotifyControl AnimationEventSink::ProcessEvent(
     if (a_event) {
         const auto actor = a_actor.get();
         if (const RE::BSFixedString& eventTag = a_event->tag; eventTag == "AnimObjLoad" && a_event->payload == "AnimObjectDrinkPotion") {
+            logger::trace("Received potion animation event '{}' for Actor {:08X}", eventTag.c_str(), actorKey.refid);
             if (actor) {
                 GetActorData(actorKey).waitForUIHeal.store(true);
             }
         }
         else if (eventTag == "IUHeal") {
+            logger::trace("Received potion animation event '{}' for Actor {:08X}", eventTag.c_str(), actorKey.refid);
             if (ActorData& data = GetActorData(actorKey); actor && data.waitForUIHeal.load()) {
                 data.waitForUIHeal.store(false);
                 data.bDrinking.store(false);
                 ProcessPotionAnimationEvent(this, actor.get());
             }
         } else if (eventTag == "DrinkPotionStop" || eventTag == "EnableBumper" || eventTag == "MTState") {
-            logger::trace("AnimationEventSink::ProcessEvent:");
+            logger::trace("Received potion animation stop event '{}' for Actor {:08X}", eventTag.c_str(), actorKey.refid);
             if (actor) {
                 logger::trace("Removing event sink for Actor: '{}'", actor->GetName());
             }
@@ -101,7 +103,7 @@ void AnimationEventSink::Cleanup(const bool unHideWeapon) {
     data.bDrinking.store(false);
     data.waitForUIHeal.store(false);
     data.bAnimationInProgress.store(false);
-    logger::trace("EventSink removed.");
+    logger::trace("Potion animation cleanup completed for Actor {:08X}; listener removed and busy flags cleared", actorKey.refid);
 }
 
 void RemoveEventSink(const AnimationEventSink* sink) {

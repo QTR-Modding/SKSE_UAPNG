@@ -30,6 +30,8 @@ void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_acto
             data.bDrinking.store(true);
             AnimObjectReplaceModelByFormID(0x0D36C8, AlchObjectGetModelPath(a_object).c_str());
             if (!EquipPotion(a_actor, a_self, a_object, a_unk)) {
+                logger::trace("Using normal potion equip for Actor: '{}' ({:08X}), potion: '{}' ({:08X}) after animation setup failed",
+                              a_actor->GetName(), a_actor->GetFormID(), a_object->GetName(), a_object->GetFormID());
                 func(a_self, a_actor, a_object, a_unk);
                 return;
             }
