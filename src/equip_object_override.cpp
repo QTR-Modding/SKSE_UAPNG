@@ -17,7 +17,11 @@ void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_acto
         return;
     }
 
-    if (IsObjectBlacklisted(a_object)) {
+    const bool blacklisted = IsObjectBlacklisted(a_object);
+    logger::trace("Equip request for Actor: '{}' ({:08X}), item: '{}' ({:08X}, {}), blacklist match: {}, blacklist size: {}",
+                  a_actor->GetName(), a_actor->GetFormID(), a_object->GetName(), a_object->GetFormID(),
+                  RE::FormTypeToString(a_object->GetFormType()), blacklisted, config::potionFormLists.blacklisted.size());
+    if (blacklisted) {
         func(a_self, a_actor, a_object, a_unk);
         return;
     }

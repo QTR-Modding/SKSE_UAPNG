@@ -37,6 +37,7 @@ namespace config {
         template <typename T>
         std::vector<T*> ReadFormsFromINISection(const char* section) {
             const std::string iniFilePath = GetIniFilePath();
+            logger::trace("Reading potion form list [{}] from '{}'", section, iniFilePath);
             constexpr std::size_t initialBufferSize = 4096;
             constexpr std::size_t sectionTerminatorCount = 2;
             constexpr auto maximumBufferSize = static_cast<std::size_t>(std::numeric_limits<DWORD>::max());
@@ -55,12 +56,19 @@ namespace config {
                 const std::string line(ptr);
                 const auto entry = StringHelpers::trim(line.substr(0, line.find(';')));
                 if (const auto form = FormReader::GetFormFromString(entry)) {
+                    logger::trace("Potion form list [{}] entry '{}' resolved to '{}' ({:08X}, {})", section, entry,
+                                  form->GetName(), form->GetFormID(), RE::FormTypeToString(form->GetFormType()));
                     if (const auto object = form->As<T>()) {
                         forms.push_back(object);
+                    } else {
+                        logger::trace("Potion form list [{}] entry '{}' skipped: incompatible form type", section, entry);
                     }
+                } else {
+                    logger::trace("Potion form list [{}] entry '{}' did not resolve", section, entry);
                 }
                 ptr += line.size() + 1;
             }
+            logger::trace("Potion form list [{}] loaded {} forms", section, forms.size());
             return forms;
         }
     }
