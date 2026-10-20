@@ -1,6 +1,8 @@
 #include "config.h"
 #include <CLibUtilsQTR/FormReader.hpp>
 #include <CLibUtilsQTR/StringHelpers.hpp>
+#include <ClibUtil/string.hpp>
+#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,40 +36,67 @@ namespace config {
     }
 
     namespace {
-        template <typename T>
-        std::vector<T*> ReadFormsFromINISection(const char* section) {
-            const std::string iniFilePath = GetIniFilePath();
-            constexpr std::size_t initialBufferSize = 4096;
-            constexpr std::size_t sectionTerminatorCount = 2;
-            constexpr auto maximumBufferSize = static_cast<std::size_t>(std::numeric_limits<DWORD>::max());
-            std::vector<char> buffer(initialBufferSize);
-            while (GetPrivateProfileSectionA(section, buffer.data(), static_cast<DWORD>(buffer.size()), iniFilePath.c_str()) == buffer.size() - sectionTerminatorCount) {
-                if (buffer.size() == maximumBufferSize) {
-                    logger::error("INI section '{}' exceeds the Windows section size limit", section);
+        std::string ReadIniFile(const std::string& iniFilePath) {
+            std::ifstream file(iniFilePath, std::ios::binary);
+            if (!file) {
+                logger::error("Failed to read INI file '{}'", iniFilePath);
+                return {};
+            }
+            std::string text(std::istreambuf_iterator<char>{file}, {});
+            constexpr std::string_view utf16LEBOM = "\xFF\xFE";
+            constexpr std::string_view utf8BOM = "\xEF\xBB\xBF";
+            if (text.starts_with(utf16LEBOM)) {
+                const auto byteCount = text.size() - utf16LEBOM.size();
+                const auto characterCount = byteCount / sizeof(wchar_t);
+                if (byteCount % sizeof(wchar_t) != 0 || characterCount > std::numeric_limits<int>::max()) {
+                    logger::error("Invalid UTF-16 INI file '{}'", iniFilePath);
                     return {};
                 }
-                buffer.resize(std::min(buffer.size() * 2, maximumBufferSize));
+                std::wstring wide(characterCount, L'\0');
+                std::memcpy(wide.data(), text.data() + utf16LEBOM.size(), byteCount);
+                const auto length = static_cast<int>(wide.size());
+                const auto size = WideCharToMultiByte(CP_ACP, 0, wide.data(), length, nullptr, 0, nullptr, nullptr);
+                if (size == 0) return {};
+                text.assign(size, '\0');
+                WideCharToMultiByte(CP_ACP, 0, wide.data(), length, text.data(), size, nullptr, nullptr);
+            } else if (text.starts_with(utf8BOM)) {
+                text.erase(0, utf8BOM.size());
             }
+            std::ranges::replace(text, '\r', '\n');
+            return text;
+        }
 
+        template <typename T>
+        std::vector<T*> ReadFormsFromINISection(std::istream& file, const char* section) {
+            file.clear();
+            file.seekg(0);
             std::vector<T*> forms;
-            const char* ptr = buffer.data();
-            while (*ptr != '\0') {
-                const std::string line(ptr);
+            bool inSection = false;
+            for (std::string line; std::getline(file, line);) {
                 const auto entry = StringHelpers::trim(line.substr(0, line.find(';')));
-                if (const auto form = FormReader::GetFormFromString(entry)) {
-                    if (const auto object = form->As<T>()) {
-                        forms.push_back(object);
+                if (entry.starts_with('[')) {
+                    if (const auto end = entry.find(']'); end != std::string::npos) {
+                        if (inSection) break;
+                        inSection = clib_util::string::iequals(StringHelpers::trim(entry.substr(1, end - 1)), section);
+                        continue;
                     }
                 }
-                ptr += line.size() + 1;
+                if (inSection) {
+                    if (const auto form = FormReader::GetFormFromString(entry)) {
+                        if (const auto object = form->As<T>()) {
+                            forms.push_back(object);
+                        }
+                    }
+                }
             }
             return forms;
         }
     }
 
     void ReadPotionFormLists() {
-        potionFormLists.blacklisted = ReadFormsFromINISection<RE::TESBoundObject>("BlacklistedPotions");
-        potionFormLists.allowed = ReadFormsFromINISection<RE::AlchemyItem>("AllowedPotions");
+        std::istringstream file(ReadIniFile(GetIniFilePath()));
+        potionFormLists.blacklisted = ReadFormsFromINISection<RE::TESBoundObject>(file, "BlacklistedPotions");
+        potionFormLists.allowed = ReadFormsFromINISection<RE::AlchemyItem>(file, "AllowedPotions");
     }
 
     std::unordered_map<std::string, int> ReadSettings() {
