@@ -2,6 +2,7 @@
 #include "animation_event_sink.h"
 #include "function_library.h"
 #include "config.h"
+#include "potion_diagnostics.h"
 
 AnimationEventSink::AnimationEventSink(RE::ActorEquipManager* equipManager, RE::Actor* actor,
                                        RE::TESBoundObject* object, const std::uint64_t unk,
@@ -41,8 +42,11 @@ RE::BSEventNotifyControl AnimationEventSink::ProcessEvent(
 }
 
 void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink, RE::Actor* actor) {
+    PotionDiagnostics::Note("AnimationConsumptionBegin", eventSink->actorKey.refid, eventSink->actorKey.formid,
+                            reinterpret_cast<std::uintptr_t>(eventSink->a_object));
     logger::info("Processing potion animation event for Actor: '{}'", actor->GetName());
     eventSink->a_equipManager->EquipObject(actor, eventSink->a_object);
+    PotionDiagnostics::Note("AnimationConsumptionEnd", eventSink->actorKey.refid, eventSink->actorKey.formid);
     if (config::bEnableSpamPotions && actor->IsPlayerRef()) {
         RE::SendUIMessage::SendInventoryUpdateMessage(actor,nullptr);
     }
@@ -86,6 +90,7 @@ void AnimationEventSink::CompleteSetup() {
 }
 
 void AnimationEventSink::Cleanup(const bool unHideWeapon) {
+    PotionDiagnostics::Note("AnimationCleanupBegin", actorKey.refid, actorKey.formid);
     if (unHideWeapon) {
         RestoreWeaponVisibility(hiddenWeaponNodes);
     }
@@ -103,6 +108,7 @@ void AnimationEventSink::Cleanup(const bool unHideWeapon) {
     data.bDrinking.store(false);
     data.waitForUIHeal.store(false);
     data.bAnimationInProgress.store(false);
+    PotionDiagnostics::Note("AnimationCleanupEnd", actorKey.refid, actorKey.formid);
     logger::trace("Potion animation cleanup completed for Actor {:08X}; listener removed and busy flags cleared", actorKey.refid);
 }
 

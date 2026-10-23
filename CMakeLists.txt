@@ -48,16 +48,16 @@ add_subdirectory("$ENV{COMMONLIB_SSE_FOLDER}" ${CMAKE_CURRENT_BINARY_DIR}/_deps/
 get_target_property(COMMONLIB_SRC_DIR CommonLibSSE SOURCE_DIR)
 
 
+source_group(
+  TREE ${CMAKE_CURRENT_SOURCE_DIR}
+  FILES ${headers} ${sources}
+)
+
 file(
   GLOB_RECURSE
   sources
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
   ${sources}
-)
-
-source_group(
-  TREE ${CMAKE_CURRENT_SOURCE_DIR}
-  FILES ${headers} ${sources}
 )
 
 set(BUILD_TESTS OFF)
@@ -79,6 +79,15 @@ target_include_directories(
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE IS_HOST_PLUGIN)
+
+option(UAPNG_POTION_DIAGNOSTICS "Record potion requests around death and reload" OFF)
+if(UAPNG_POTION_DIAGNOSTICS)
+    target_sources(${PROJECT_NAME} PRIVATE src/potion_diagnostics.cpp src/potion_entry_probe.cpp)
+    target_link_libraries(${PROJECT_NAME} PRIVATE bcrypt Version)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        UAPNG_POTION_DIAGNOSTICS
+        UAPNG_DIAGNOSTIC_BUILD_ID="death-reload-1")
+endif()
 
 set(wildlander_output false)
 set(steam_owrt_output false)
