@@ -39,7 +39,7 @@ void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_acto
                 CloseMenu();
             }
         } else {            
-            if (!config::bEnableSpamPotions){
+            if (!config::bEnableSpamPotions && data.bAnimationInProgress.load()){
                 if (!data.bDrinking) {                
                     data.bDrinking = true;
                     NotifyActorDrinkingLastPotion(a_actor, a_object);
