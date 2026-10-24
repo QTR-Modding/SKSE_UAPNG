@@ -86,7 +86,7 @@ if(UAPNG_POTION_DIAGNOSTICS)
     target_link_libraries(${PROJECT_NAME} PRIVATE bcrypt Version)
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         UAPNG_POTION_DIAGNOSTICS
-        UAPNG_DIAGNOSTIC_BUILD_ID="death-reload-1")
+        UAPNG_DIAGNOSTIC_BUILD_ID="death-reload-2")
 endif()
 
 set(wildlander_output false)

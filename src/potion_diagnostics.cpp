@@ -412,9 +412,8 @@ namespace PotionDiagnostics {
                 record.values[2] = ui && ui->GameIsPaused();
                 constexpr std::array attributes{RE::ActorValue::kHealth, RE::ActorValue::kMagicka, RE::ActorValue::kStamina};
                 for (std::size_t index = 0; index < attributes.size(); ++index) {
-                    record.values[3 + index * 2] = std::bit_cast<std::uint32_t>(player->GetActorValue(attributes[index]));
-                    record.values[4 + index * 2] = std::bit_cast<std::uint32_t>(player->GetPermanentActorValue(attributes[index]) +
-                        player->GetActorValueModifier(RE::ACTOR_VALUE_MODIFIER::kTemporary, attributes[index]));
+                    record.values[3 + index * 2] = std::bit_cast<std::uint32_t>(player->AsActorValueOwner()->GetActorValue(attributes[index]));
+                    record.values[4 + index * 2] = std::bit_cast<std::uint32_t>(player->GetActorValueMax(attributes[index]));
                 }
                 record.values[9] = ui ? ui->numPausesGame : 0;
                 record.values[10] = player->GetRace() ? player->GetRace()->formID : 0;
@@ -435,7 +434,7 @@ namespace PotionDiagnostics {
                     ReadMemory(swift + profile.utility + positiveKeywordOffset, positive);
                     ReadMemory(swift + profile.utility + negativeKeywordOffset, negative);
                 }
-                if (const auto effects = player->GetActiveEffectList()) {
+                if (const auto effects = player->AsMagicTarget()->GetActiveEffectList()) {
                     for (const auto effect : *effects) {
                         ++total;
                         if (!effect || !effect->effect || !effect->effect->baseEffect) continue;
