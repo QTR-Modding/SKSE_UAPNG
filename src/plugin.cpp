@@ -3,13 +3,19 @@
 #include "logger.h"
 #include "animation_event_sink.h"
 #include "actor_data.h"
+#include "potion_diagnostics.h"
 
 
 void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
+    PotionDiagnostics::OnMessage(a_msg);
     switch (a_msg->type) {
         case SKSE::MessagingInterface::kDataLoaded:
             config::ReadPotionFormLists();
             EquipObjectOverRide::Install();
+            PotionDiagnostics::DataLoaded();
+#ifdef UAPNG_POTION_DIAGNOSTICS
+            SKSE::GetTaskInterface()->AddTask(PotionDiagnostics::InstallEntryProbe);
+#endif
             logger::info("Ultimate Potion Animation NG - Plugin Ready");            
             break;
         case SKSE::MessagingInterface::kPostLoadGame:
@@ -19,6 +25,7 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
                     const std::lock_guard lock(actorAnimationState.mutex);
                     pause.store(true);
                     ++actorAnimationState.loadGeneration;
+                    PotionDiagnostics::Note("ReloadCleanupBegin", actorAnimationState.loadGeneration, actorAnimationState.actorEventSink.size());
                     eventSinks.swap(actorAnimationState.actorEventSink);
                 }
 
@@ -27,10 +34,12 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
                 config::bEnableNotifications = settings["bEnableNotifications"] != 0;
                 config::bEnableSpamPotions = settings["bEnableSpamPotions"] != 0;
                 config::bExcludePlayer = settings["bExcludePlayer"] != 0;
+                PotionDiagnostics::SettingsLoaded();
 
                 for (auto& eventSink : eventSinks | std::views::values) {
                     CleanupAnimationEvent(eventSink.get(), true);
                 }
+                PotionDiagnostics::Note("ReloadCleanupEnd", actorAnimationState.loadGeneration, eventSinks.size());
 
                 
                 logger::info("Ultimate Potion Animation NG - Post Load Game");
@@ -47,6 +56,8 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
     SetupLog();
+    PotionDiagnostics::Initialize();
+    PotionDiagnostics::Note("SKSEVersion", skse->SKSEVersion(), skse->RuntimeVersion().pack());
     SKSE::GetMessagingInterface()->RegisterListener(PluginReady);
     return true;
 }
