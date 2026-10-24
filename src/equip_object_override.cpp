@@ -3,6 +3,7 @@
 #include "function_library.h"
 #include "pch.h"
 #include "config.h"
+#include "Logger.h"
 
 void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_actor, RE::TESBoundObject* a_object, std::uint64_t a_unk) {
 
@@ -23,6 +24,9 @@ void EquipObjectOverRide::thunk(RE::ActorEquipManager* a_self, RE::Actor* a_acto
     }
 
     if (CheckActorAndObjectKeywords(a_object, a_actor) || IsObjectAPotion(a_object) || IsObjectWhitelisted(a_object)) {
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+        TraceActorBases("potion-request", a_actor, a_object);
+#endif
         const auto actor_custom = ActorCustom(a_actor);
         ActorData& data = GetActorData(actor_custom);
         bool animationInProgress = false;

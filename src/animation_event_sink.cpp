@@ -2,6 +2,7 @@
 #include "animation_event_sink.h"
 #include "function_library.h"
 #include "config.h"
+#include "Logger.h"
 
 AnimationEventSink::AnimationEventSink(RE::ActorEquipManager* equipManager, RE::Actor* actor,
                                        RE::TESBoundObject* object, const std::uint64_t unk,
@@ -41,8 +42,16 @@ RE::BSEventNotifyControl AnimationEventSink::ProcessEvent(
 }
 
 void ProcessPotionAnimationEvent(const AnimationEventSink* eventSink, RE::Actor* actor) {
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+    logger::trace("[save-load] consume sink={:016X} graph={:016X}", reinterpret_cast<std::uintptr_t>(eventSink),
+                  reinterpret_cast<std::uintptr_t>(eventSink->animationGraph.get()));
+    TraceActorBases("consume-before", actor, eventSink->a_object);
+#endif
     logger::info("Processing potion animation event for Actor: '{}'", actor->GetName());
     eventSink->a_equipManager->EquipObject(actor, eventSink->a_object);
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+    TraceActorBases("consume-after", actor, eventSink->a_object);
+#endif
     if (config::bEnableSpamPotions && actor->IsPlayerRef()) {
         RE::SendUIMessage::SendInventoryUpdateMessage(actor,nullptr);
     }
@@ -86,6 +95,11 @@ void AnimationEventSink::CompleteSetup() {
 }
 
 void AnimationEventSink::Cleanup(const bool unHideWeapon) {
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+    logger::trace("[save-load] cleanup ref={:08X} sink={:016X} graph={:016X}", actorKey.refid,
+                  reinterpret_cast<std::uintptr_t>(this), reinterpret_cast<std::uintptr_t>(animationGraph.get()));
+    TraceActorBases("cleanup-before", a_actor.get().get(), a_object);
+#endif
     if (unHideWeapon) {
         RestoreWeaponVisibility(hiddenWeaponNodes);
     }
@@ -104,6 +118,9 @@ void AnimationEventSink::Cleanup(const bool unHideWeapon) {
     data.waitForUIHeal.store(false);
     data.bAnimationInProgress.store(false);
     logger::trace("Potion animation cleanup completed for Actor {:08X}; listener removed and busy flags cleared", actorKey.refid);
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+    TraceActorBases("cleanup-after", actor.get(), a_object);
+#endif
 }
 
 void RemoveEventSink(const AnimationEventSink* sink) {
