@@ -22,5 +22,5 @@ Both sections use QTR Utils' FormReader and accept these formats:
 
 Numeric formats work without powerofthree's Tweaks. Put one entry per line, without `key=value`. Use `;` for comments. Empty, unresolved, or unsuitable records are ignored. Restart the game after changing these lists.
 
-Build with [CommonLibVR-MIT](https://github.com/QTR-Modding/CommonLibVR-MIT/tree/b72705a607b82c7baa8d977e90303064bf3b5719) for Skyrim SE, AE, GOG, and VR.
+Build with your CommonLib clone.
 Set `COMMONLIB_SSE_FOLDER` to that checkout before configuring the project.
