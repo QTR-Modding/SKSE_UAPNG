@@ -79,6 +79,10 @@ target_include_directories(
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE IS_HOST_PLUGIN)
+option(UAPNG_SAVE_LOAD_DIAGNOSTICS "Trace NPC bases around potion use and save/load" OFF)
+if(UAPNG_SAVE_LOAD_DIAGNOSTICS)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE UAPNG_SAVE_LOAD_DIAGNOSTICS)
+endif()
 
 set(wildlander_output false)
 set(steam_owrt_output false)

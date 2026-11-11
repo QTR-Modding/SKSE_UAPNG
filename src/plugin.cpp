@@ -12,8 +12,20 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
             EquipObjectOverRide::Install();
             logger::info("Ultimate Potion Animation NG - Plugin Ready");            
             break;
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+        case SKSE::MessagingInterface::kSaveGame:
+            TraceTrackedActorBases("save-message");
+            break;
+        case SKSE::MessagingInterface::kPreLoadGame:
+            TraceTrackedActorBases("pre-load-message");
+            break;
+#endif
         case SKSE::MessagingInterface::kPostLoadGame:
             {
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+                logger::trace("[save-load] post-load result={}", a_msg->data != nullptr);
+                TraceTrackedActorBases("post-load-before-cleanup");
+#endif
                 std::map<ActorCustom, std::shared_ptr<AnimationEventSink>> eventSinks;
                 {
                     const std::lock_guard lock(actorAnimationState.mutex);
@@ -37,6 +49,9 @@ void PluginReady(SKSE::MessagingInterface::Message* a_msg) {
                 logger::info("Settings loaded: iMovementType: {}, bEnableNotifications: {}, bEnableSpamPotions: {}", config::iMovementType, config::bEnableNotifications, config::bEnableSpamPotions);
 
                 pause.store(false);
+#ifdef UAPNG_SAVE_LOAD_DIAGNOSTICS
+                TraceTrackedActorBases("post-load-after-cleanup");
+#endif
             }
             break;
         default:
